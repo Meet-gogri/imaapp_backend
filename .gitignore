@@ -1,0 +1,10 @@
+# Virtual environment
+venv/
+__pycache__/
+
+# Environment variables & secrets
+.env
+
+# Database files if local
+*.db
+*.sqlite3
