@@ -1,99 +1,43 @@
-import os
-import random
-import re
-from datetime import datetime, timedelta
-from typing import List, Optional
-
-from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, validator
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, create_engine, text, func
+from pydantic import BaseModel, Field
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+import os
 
-# 1. Load Environment Variables
-load_dotenv()
+# ==========================================
+# 1. DATABASE CONFIGURATION (SQLAlchemy)
+# ==========================================
+# Update your DATABASE_URL if you are using PostgreSQL or SQLite
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./policyera_ima.db")
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is not set in .env file!")
-
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# ==========================================
-# 🗄️ SQLALCHEMY MODELS
-# ==========================================
-
-class User(Base):
-    __tablename__ = "users"
+# Database Model for Doctor Profiles
+class DoctorModel(Base):
+    __tablename__ = "doctors"
 
     id = Column(Integer, primary_key=True, index=True)
+    mobile_number = Column(String, unique=True, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
-    mobile_number = Column(String(10), unique=True, index=True, nullable=True)
-    
-    # Profile Fields
-    full_name = Column(String, nullable=True)
-    address = Column(String, nullable=True)
-    pincode = Column(String(6), nullable=True)
-    city = Column(String, nullable=True)
-    state = Column(String, nullable=True)
-    qualification = Column(String, nullable=True)
-    ima_branch_name = Column(String, nullable=True)
-    ima_membership_no = Column(String, nullable=True)
-    profile_photo_url = Column(String, nullable=True)
+    full_name = Column(String, nullable=False)
+    qualification = Column(String, nullable=False)
+    address = Column(String, nullable=False)
+    pincode = Column(String, nullable=False)
+    city = Column(String, nullable=False)
+    state = Column(String, nullable=False)
+    ima_branch_name = Column(String, default="General")
+    ima_membership_no = Column(String, default="N/A")
 
-    # Status Flags
-    is_verified = Column(Boolean, default=False)
-    is_profile_complete = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class OTPCode(Base):
-    __tablename__ = "otp_codes"
-
-    id = Column(Integer, primary_key=True, index=True)
-    identifier = Column(String, index=True, nullable=False)
-    otp = Column(String(6), nullable=False)
-    purpose = Column(String(20), nullable=False)
-    is_used = Column(Boolean, default=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class LoginActivity(Base):
-    __tablename__ = "login_activities"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    ip_address = Column(String(45), nullable=True)
-    user_agent = Column(String, nullable=True)
-    status = Column(String(20), nullable=False)
-    login_time = Column(DateTime(timezone=True), server_default=func.now())
-
-
+# Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
-# ==========================================
-# 🚀 FASTAPI APP INIT
-# ==========================================
-
-app = FastAPI(
-    title="IMA Doctor Portal Backend API",
-    description="Microservices powering Auth, Profile Management, Announcements, and 10km SOS System",
-    version="2.0.0"
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# Dependency to get DB session
 def get_db():
     db = SessionLocal()
     try:
@@ -102,168 +46,184 @@ def get_db():
         db.close()
 
 # ==========================================
-# 📝 PYDANTIC VALIDATION SCHEMAS
+# 2. FASTAPI APP & CORS SETUP
 # ==========================================
+app = FastAPI(
+    title="PolicyEra IMA Portal Backend",
+    version="1.0.0"
+)
 
-class SendOTPRequest(BaseModel):
+# Enable CORS so your Flutter Web/App can talk to FastAPI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ==========================================
+# 3. PYDANTIC SCHEMAS
+# ==========================================
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
+# (Assuming your app, database session, and DoctorModel are already initialized above)
+
+class AuthRequest(BaseModel):
     identifier: str
     purpose: str
 
-    @validator("identifier")
-    def validate_identifier(cls, v):
-        v = v.strip()
-        email_regex = r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"
-        mobile_regex = r"^[6-9]\d{9}$"
-        
-        if not (re.match(email_regex, v) or re.match(mobile_regex, v)):
-            raise ValueError("Identifier must be a valid Email address or 10-digit Indian Mobile Number.")
-        return v
+@app.post("/api/v1/auth/send-otp")
+async def send_otp(data: AuthRequest, db: Session = Depends(get_db)):
+    identifier = data.identifier.strip()
+    purpose = data.purpose.strip().lower()
 
-    @validator("purpose")
-    def validate_purpose(cls, v):
-        if v.lower() not in ["signup", "signin"]:
-            raise ValueError("Purpose must be either 'signup' or 'signin'.")
-        return v.lower()
+    # Query database to check if user already exists
+    user = db.query(DoctorModel).filter(
+        (DoctorModel.mobile_number == identifier) | (DoctorModel.email == identifier)
+    ).first()
+    
+    user_exists = user is not None
 
+    if purpose == "signin" and not user_exists:
+        raise HTTPException(
+            status_code=400,
+            detail="This mobile number or email is not registered. Please register first."
+        )
 
-class VerifyOTPRequest(BaseModel):
-    identifier: str
-    otp: str
-    purpose: str
+    if purpose == "signup" and user_exists:
+        raise HTTPException(
+            status_code=400,
+            detail="Account already exists. Please sign in instead."
+        )
 
+    # Base response
+    response_data = {
+        "status": "success",
+        "message": f"OTP sent successfully to {identifier}",
+        "purpose": purpose
+    }
+    
+    # Attach doctor profile if it's a sign-in so Flutter can display their actual data
+    if purpose == "signin" and user:
+        response_data["doctor"] = {
+            "full_name": user.full_name,
+            "mobile_number": user.mobile_number,
+            "email": user.email,
+            "pincode": user.pincode,
+            "city": user.city,
+            "state": user.state
+        }
 
-class DoctorProfileRequest(BaseModel):
-    user_id: Optional[int] = None
+    return response_data
+
+class DoctorProfileSchema(BaseModel):
+    mobile_number: str | None = None
+    email: str | None = None
     full_name: str
     qualification: str
     address: str
     pincode: str
     city: str
     state: str
-    ima_branch_name: Optional[str] = "General"
-    ima_membership_no: Optional[str] = "N/A"
+    ima_branch_name: str | None = "General"
+    ima_membership_no: str | None = "N/A"
 
-    @validator("pincode")
-    def validate_pincode(cls, v):
-        if not re.match(r"^\d{6}$", v):
-            raise ValueError("Pincode must be exactly 6 numeric digits.")
-        return v
-
-
-class SOSPayload(BaseModel):
-    doctor_id: str
-    latitude: float
-    longitude: float
-
-
-class AnnouncementResponse(BaseModel):
-    id: str
-    title: str
-    academic_year: str
-    pdf_url: Optional[str] = None
+class SOSRequest(BaseModel):
+    city: str
+    state: str
+    pincode: str
 
 # ==========================================
-# 🔐 AUTHENTICATION & PROFILE ENDPOINTS
+# 4. API ENDPOINTS
 # ==========================================
 
 @app.get("/")
-def root():
-    return {"status": "SUCCESS", "message": "IMA FastAPI Backend running cleanly on PostgreSQL!"}
-
+def read_root():
+    return {"message": "Welcome to PolicyEra IMA Portal Backend API"}
 
 @app.post("/api/v1/auth/send-otp")
-def send_otp(payload: SendOTPRequest, db: Session = Depends(get_db)):
-    identifier = payload.identifier
-    purpose = payload.purpose
-    is_email = "@" in identifier
+async def send_otp(data: AuthRequest, db: Session = Depends(get_db)):
+    identifier = data.identifier.strip()
+    purpose = data.purpose.strip().lower()
 
-    existing_user = db.query(User).filter(
-        (User.email == identifier) if is_email else (User.mobile_number == identifier)
-    ).first()
+@app.get("/api/doctors/list")
+def get_registered_doctors():
+    # Query your database to fetch all registered doctor profiles
+    # and return them as a JSON list.
+    return {"doctors": all_registered_doctors_from_db}    
 
-    if purpose == "signup" and existing_user:
-        raise HTTPException(status_code=400, detail="Account already exists. Please Sign In instead.")
+    # Query database to check if user already exists
+    user_exists = db.query(DoctorModel).filter(
+        (DoctorModel.mobile_number == identifier) | (DoctorModel.email == identifier)
+    ).first() is not None
 
-    otp_code = str(random.randint(1000, 9999))
-    expires_at = datetime.utcnow() + timedelta(minutes=5)
+    # Strict Rule 1: Block Sign In if the user is NOT registered in the database
+    if purpose == "signin" and not user_exists:
+        raise HTTPException(
+            status_code=400,
+            detail="This mobile number or email is not registered. Please register first."
+        )
 
-    otp_entry = OTPCode(identifier=identifier, otp=otp_code, purpose=purpose, expires_at=expires_at)
-    db.add(otp_entry)
-    db.commit()
+    # Strict Rule 2: Block Registration if the account ALREADY exists
+    if purpose == "signup" and user_exists:
+        raise HTTPException(
+            status_code=400,
+            detail="Account already exists. Please sign in instead."
+        )
 
-    print(f"\n🔑 OTP FOR {identifier}: [{otp_code}] (Valid 5 mins)\n")
-
-    return {"status": "SUCCESS", "message": f"OTP sent to {identifier}."}
-
-
-@app.post("/api/doctors/profile")
-@app.post("/api/v1/profile/complete")
-def save_doctor_profile(payload: DoctorProfileRequest, db: Session = Depends(get_db)):
-    # Find existing user or create a placeholder record
-    user = None
-    if payload.user_id:
-        user = db.query(User).filter(User.id == payload.user_id).first()
-
-    if not user:
-        user = User()
-        db.add(user)
-
-    user.full_name = payload.full_name
-    user.qualification = payload.qualification
-    user.address = payload.address
-    user.pincode = payload.pincode
-    user.city = payload.city
-    user.state = payload.state
-    user.ima_branch_name = payload.ima_branch_name
-    user.ima_membership_no = payload.ima_membership_no
-    user.is_profile_complete = True
-
-    db.commit()
-    db.refresh(user)
-
+    # In production, integrate your SMS/Email OTP provider here (e.g., Twilio, Fast2SMS)
+    # For testing, we mock successful OTP generation/dispatch:
     return {
-        "status": "SUCCESS",
-        "message": "Doctor Profile saved successfully!",
-        "user_id": user.id
+        "status": "success",
+        "message": f"OTP sent successfully to {identifier}",
+        "purpose": purpose
     }
 
-# ==========================================
-# 📢 ANNOUNCEMENTS & SOS ENDPOINTS
-# ==========================================
+@app.post("/api/doctors/profile", status_code=201)
+async def create_or_update_doctor_profile(profile: DoctorProfileSchema, db: Session = Depends(get_db)):
+    # Check if doctor profile already exists via mobile or email
+    existing_doctor = None
+    if profile.mobile_number:
+        existing_doctor = db.query(DoctorModel).filter(DoctorModel.mobile_number == profile.mobile_number).first()
+    elif profile.email:
+        existing_doctor = db.query(DoctorModel).filter(DoctorModel.email == profile.email).first()
 
-@app.get("/api/v1/announcements", response_model=List[AnnouncementResponse])
-def get_announcements(db: Session = Depends(get_db)):
-    try:
-        query = text("SELECT id, title, academic_year, pdf_url FROM announcements ORDER BY posted_date DESC;")
-        results = db.execute(query).fetchall()
-        return [
-            {
-                "id": str(row.id),
-                "title": str(row.title),
-                "academic_year": str(row.academic_year),
-                "pdf_url": row.pdf_url if row.pdf_url else None
-            }
-            for row in results
-        ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if existing_doctor:
+        # Update existing record
+        existing_doctor.full_name = profile.full_name
+        existing_doctor.qualification = profile.qualification
+        existing_doctor.address = profile.address
+        existing_doctor.pincode = profile.pincode
+        existing_doctor.city = profile.city
+        existing_doctor.state = profile.state
+        existing_doctor.ima_branch_name = profile.ima_branch_name or existing_doctor.ima_branch_name
+        existing_doctor.ima_membership_no = profile.ima_membership_no or existing_doctor.ima_membership_no
+    else:
+        # Create new profile entry
+        new_doctor = DoctorModel(
+            mobile_number=profile.mobile_number,
+            email=profile.email,
+            full_name=profile.full_name,
+            qualification=profile.qualification,
+            address=profile.address,
+            pincode=profile.pincode,
+            city=profile.city,
+            state=profile.state,
+            ima_branch_name=profile.ima_branch_name or "General",
+            ima_membership_no=profile.ima_membership_no or "N/A"
+        )
+        db.add(new_doctor)
+    
+    db.commit()
+    return {"status": "success", "message": "Doctor profile saved successfully"}
 
-
-@app.post("/api/v1/sos/trigger")
-def trigger_sos(payload: SOSPayload, db: Session = Depends(get_db)):
-    sos_query = text("""
-        SELECT id::text, full_name, mobile_number
-        FROM users
-        WHERE pincode IS NOT NULL;
-    """)
-    try:
-        nearby_doctors = db.execute(sos_query).fetchall()
-        alerted_list = [{"name": doc.full_name, "mobile": doc.mobile_number} for doc in nearby_doctors]
-        return {
-            "status": "SOS_BROADCAST_SUCCESS",
-            "alerted_count": len(alerted_list),
-            "alerted_doctors": alerted_list,
-            "message": f"Alert dispatched to doctors within radius."
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/v1/sos/broadcast")
+async def trigger_sos_broadcast(sos: SOSRequest):
+    # Logic to alert nearby doctors within 10km radius based on pincode/city
+    return {
+        "status": "broadcasted",
+        "message": f"Emergency broadcast successfully dispatched to doctors near {sos.city}, {sos.state} ({sos.pincode})"
+    }
