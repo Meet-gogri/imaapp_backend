@@ -227,3 +227,9 @@ async def trigger_sos_broadcast(sos: SOSRequest):
         "status": "broadcasted",
         "message": f"Emergency broadcast successfully dispatched to doctors near {sos.city}, {sos.state} ({sos.pincode})"
     }
+
+    @app.get("/api/v1/doctors/registered")
+def get_registered_doctors():
+    # Query your database for all registered doctors
+    doctors = db.query(DoctorModel).all() # Adjust according to your DB model
+    return {"doctors": [doc.dict() for doc in doctors]}
