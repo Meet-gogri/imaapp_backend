@@ -287,3 +287,16 @@ async def update_doctor_profile(doctor_id: str, payload: DoctorUpdate):
         "message": "Doctor profile updated successfully",
         "updated_fields": update_data
     }
+
+
+    import 'package:url_launcher/url_launcher.dart';
+
+Future<void> _launchExternalBrowser(String urlString) async {
+  final Uri url = Uri.parse(urlString);
+  if (!await launchUrl(
+    url,
+    mode: LaunchMode.externalApplication, // Forces it to open in Chrome / default browser
+  )) {
+    throw Exception('Could not launch $urlString');
+  }
+}
