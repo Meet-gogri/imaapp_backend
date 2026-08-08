@@ -30,6 +30,7 @@ else:
             "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION",
             "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
             "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS photo_base64 TEXT",
         ]:
             try:
                 _conn.execute(text(_stmt))
