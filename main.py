@@ -1,10 +1,30 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.database import Base, engine
 from app.routers import auth, profile, sos, insurance
 
 Base.metadata.create_all(bind=engine)
+
+# One-time-safe schema fix, run automatically on every startup (free tier has
+# no Shell/Jobs access, so this replaces needing to run a script manually).
+# "IF NOT EXISTS" makes this harmless to run again on every future deploy -
+# it does nothing once the columns already exist.
+with engine.connect() as _conn:
+    for _stmt in [
+        "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION",
+        "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
+        "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT FALSE",
+    ]:
+        try:
+            _conn.execute(text(_stmt))
+        except Exception as _exc:
+            # SQLite doesn't support "IF NOT EXISTS" on ADD COLUMN the same
+            # way - if you're on SQLite instead of Postgres, this is safe to
+            # ignore as long as the app still starts.
+            print(f"[startup migration] skipped: {_stmt} ({_exc})")
+    _conn.commit()
 
 app = FastAPI(title="PolicyEra IMA Portal Backend", version="2.0.0")
 
