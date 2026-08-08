@@ -2,11 +2,11 @@ import os
 import smtplib
 from email.message import EmailMessage
 
-SMTP_HOST = "smtppro.zoho.in"
-SMTP_PORT = 465
-SMTP_USER = "no_reply@policyera.com"
-SMTP_PASS = "EvLTUpMTLWeQ"
-SMTP_FROM = "no_reply@policyera.com"
+SMTP_HOST = os.getenv("SMTP_HOST")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASS = os.getenv("SMTP_PASS")
+SMTP_FROM = os.getenv("SMTP_FROM")
 
 
 def send_otp_email(to_email: str, code: str):
