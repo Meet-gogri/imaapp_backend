@@ -5,7 +5,7 @@ from ..database import get_db
 from ..models import DoctorModel
 from ..schemas import DoctorProfileUpdate
 from ..deps import get_current_doctor
-from ..utils.geo import geocode_pincode
+from ..utils.geo import geocode_pincode, geocode_city_state
 
 router = APIRouter(prefix="/api/doctors", tags=["profile"])
 
@@ -53,6 +53,10 @@ def update_my_profile(
     # radius search. If it fails (bad pincode, geocoder briefly down), the
     # profile still saves - it just won't be reachable by SOS yet.
     coords = geocode_pincode(profile.pincode)
+    if not coords:
+        # Indian pincode coverage in the free geocoder is patchy - city/state
+        # place-name lookups are much more reliable, so fall back to that.
+        coords = geocode_city_state(profile.city, profile.state)
     if coords:
         current.latitude, current.longitude = coords
 
