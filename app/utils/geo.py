@@ -23,7 +23,7 @@ def geocode_pincode(pincode: str, country: str = "India"):
             "https://nominatim.openstreetmap.org/search",
             params={"postalcode": pincode, "country": country, "format": "json", "limit": 1},
             headers={"User-Agent": "IMA-Maharashtra-App/1.0 (contact@example.org)"},
-            timeout=5,
+            timeout=8,
         )
         response.raise_for_status()
         results = response.json()
@@ -31,6 +31,27 @@ def geocode_pincode(pincode: str, country: str = "India"):
             return None
         return float(results[0]["lat"]), float(results[0]["lon"])
     except Exception:
-        # Geocoding is best-effort: if it fails, the profile still saves,
-        # it just won't be reachable by SOS radius search until it succeeds.
+        return None
+
+
+def geocode_city_state(city: str, state: str, country: str = "India"):
+    """Fallback for when a raw pincode search fails - Nominatim's coverage of
+    Indian postal codes specifically is patchy, but city/state place-name
+    lookups are much more reliable. Same free/keyless service."""
+    if not city and not state:
+        return None
+    query = ", ".join(part for part in [city, state, country] if part)
+    try:
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": query, "format": "json", "limit": 1},
+            headers={"User-Agent": "IMA-Maharashtra-App/1.0 (contact@example.org)"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        results = response.json()
+        if not results:
+            return None
+        return float(results[0]["lat"]), float(results[0]["lon"])
+    except Exception:
         return None
