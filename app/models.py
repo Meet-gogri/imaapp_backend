@@ -28,6 +28,11 @@ class DoctorModel(Base):
     profile_complete = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Profile photo stored as base64 text directly in the database - avoids
+    # needing any paid file/object storage service. Keep photos small on the
+    # Flutter side (resize before upload) since this bloats each DB row.
+    photo_base64 = Column(Text, nullable=True)
+
 
 class OtpCodeModel(Base):
     __tablename__ = "otp_codes"
