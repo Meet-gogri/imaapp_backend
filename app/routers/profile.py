@@ -24,8 +24,19 @@ def _serialize(doctor: DoctorModel):
         "ima_branch_name": doctor.ima_branch_name,
         "ima_membership_no": doctor.ima_membership_no,
         "profile_complete": doctor.profile_complete,
+        "photo_base64": doctor.photo_base64,
         "has_location": doctor.latitude is not None and doctor.longitude is not None,
     }
+
+
+def _with_dr_prefix(name: str) -> str:
+    if not name:
+        return name
+    stripped = name.strip()
+    lowered = stripped.lower()
+    if lowered.startswith("dr.") or lowered.startswith("dr "):
+        return stripped
+    return f"Dr. {stripped}"
 
 
 @router.get("/me")
@@ -39,7 +50,7 @@ def update_my_profile(
     db: Session = Depends(get_db),
     current: DoctorModel = Depends(get_current_doctor),
 ):
-    current.full_name = profile.full_name
+    current.full_name = _with_dr_prefix(profile.full_name)
     current.qualification = profile.qualification
     current.address = profile.address
     current.pincode = profile.pincode
@@ -48,6 +59,8 @@ def update_my_profile(
     current.ima_branch_name = profile.ima_branch_name or current.ima_branch_name
     current.ima_membership_no = profile.ima_membership_no or current.ima_membership_no
     current.profile_complete = True
+    if profile.photo_base64 is not None:
+        current.photo_base64 = profile.photo_base64
 
     # Resolve pincode -> coordinates once here, cached for every future SOS
     # radius search. If it fails (bad pincode, geocoder briefly down), the

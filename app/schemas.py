@@ -21,6 +21,7 @@ class DoctorProfileUpdate(BaseModel):
     state: str
     ima_branch_name: str | None = "General"
     ima_membership_no: str | None = "N/A"
+    photo_base64: str | None = None  # small photo, base64-encoded (see note in models.py)
 
 
 class SosTriggerRequest(BaseModel):
