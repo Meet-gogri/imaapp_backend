@@ -61,3 +61,22 @@ def read_root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/debug/schema-check")
+def schema_check():
+    """Temporary diagnostic - shows exactly what columns the live database
+    actually has right now, no guessing from logs. Visit this URL directly
+    in a browser. Remove this endpoint once the schema issue is confirmed
+    fixed - it's not meant to stay in a production app."""
+    with engine.connect() as conn:
+        result = conn.execute(text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'doctors' ORDER BY column_name"
+        ))
+        columns = [row[0] for row in result]
+    return {
+        "doctors_table_columns": columns,
+        "has_latitude": "latitude" in columns,
+        "has_longitude": "longitude" in columns,
+        "has_profile_complete": "profile_complete" in columns,
+    }
