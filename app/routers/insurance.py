@@ -13,4 +13,14 @@ def insurance_status():
         "message": "In-app policy purchase is being integrated with PolicyEra. "
                    "Meanwhile you can visit the PolicyEra website directly.",
         "external_url": "https://policyera.com",
+        # Real product list from policyera.com, for cross-sell display -
+        # doctor/hospital indemnity is the current focus but PolicyEra
+        # offers these too.
+        "other_products": [
+            "Doctor Professional Indemnity", "Hospital Indemnity", "Health Insurance",
+            "Term Life Insurance", "1 Crore Term Plan", "Personal Accident",
+            "Critical Illness", "Car Insurance", "Bike Insurance",
+            "Commercial Vehicle Insurance", "Travel Insurance", "Home Insurance",
+            "Cyber Insurance", "Investment Plans (Pension, ULIPs, Child Plans)",
+        ],
     }
