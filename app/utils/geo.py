@@ -45,15 +45,20 @@ MAHARASHTRA_CITY_COORDS = {
 def geocode_from_city_lookup(city: str | None, state: str | None):
     """Primary geocoding path: match the doctor's city against the built-in
     Maharashtra table above. Zero network calls, so nothing to be blocked."""
+    print(f"[geocode_from_city_lookup] called with city={city!r} state={state!r}")
     if not city:
+        print("[geocode_from_city_lookup] no city provided, returning None")
         return None
     key = city.strip().lower()
     if key in MAHARASHTRA_CITY_COORDS:
+        print(f"[geocode_from_city_lookup] exact match for '{key}': {MAHARASHTRA_CITY_COORDS[key]}")
         return MAHARASHTRA_CITY_COORDS[key]
     # Loose match: city text sometimes includes extra words (e.g. "Mumbai Suburban")
     for name, coords in MAHARASHTRA_CITY_COORDS.items():
         if name in key or key in name:
+            print(f"[geocode_from_city_lookup] loose match '{key}' ~ '{name}': {coords}")
             return coords
+    print(f"[geocode_from_city_lookup] NO MATCH for '{key}'")
     return None
 
 
