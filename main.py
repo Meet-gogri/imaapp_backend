@@ -4,7 +4,7 @@ from sqlalchemy import text
 import os
 
 from app.database import Base, engine
-from app.routers import auth, profile, sos, insurance
+from app.routers import auth, profile, sos, insurance, push
 
 # ---------------------------------------------------------------------------
 # DATABASE RESET SWITCH (guaranteed schema fix)
@@ -31,6 +31,7 @@ else:
             "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
             "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT FALSE",
             "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS photo_base64 TEXT",
+            "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS fcm_token TEXT",
         ]:
             try:
                 _conn.execute(text(_stmt))
@@ -52,6 +53,7 @@ app.include_router(auth.router)
 app.include_router(profile.router)
 app.include_router(sos.router)
 app.include_router(insurance.router)
+app.include_router(push.router)
 
 
 @app.get("/")

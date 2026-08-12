@@ -5,6 +5,7 @@ pydantic>=2.7.0
 PyJWT>=2.8.0
 python-dotenv>=1.0.1
 requests>=2.31.0
+firebase-admin>=6.5.0
 
 # Only needed if DATABASE_URL points at Postgres instead of the default
 # SQLite file. Safe to leave installed either way.

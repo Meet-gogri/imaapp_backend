@@ -6,6 +6,7 @@ from ..models import DoctorModel, SosAlertModel, SosRecipientModel
 from ..schemas import SosTriggerRequest, SosResolveRequest
 from ..deps import get_current_doctor
 from ..utils.geo import haversine_km
+from ..utils.push import send_push_notification
 
 router = APIRouter(prefix="/api/v1/sos", tags=["sos"])
 
@@ -53,6 +54,13 @@ def trigger_sos(
         if distance <= radius:
             db.add(SosRecipientModel(alert_id=alert.id, doctor_id=doc.id, distance_km=round(distance, 2)))
             notified.append({"id": doc.id, "full_name": doc.full_name, "distance_km": round(distance, 2)})
+            if doc.fcm_token:
+                send_push_notification(
+                    token=doc.fcm_token,
+                    title="SOS - A nearby doctor needs help",
+                    body=f"{current.full_name or 'A doctor'} triggered an SOS alert {round(distance, 1)} km from you.",
+                    data={"type": "sos_alert", "alert_id": str(alert.id)},
+                )
 
     db.commit()
     notified.sort(key=lambda d: d["distance_km"])
