@@ -33,6 +33,10 @@ class DoctorModel(Base):
     # Flutter side (resize before upload) since this bloats each DB row.
     photo_base64 = Column(Text, nullable=True)
 
+    # Firebase Cloud Messaging device token - set after login, used to send
+    # real push notifications for SOS alerts. Free (Firebase Spark plan).
+    fcm_token = Column(Text, nullable=True)
+
 
 class OtpCodeModel(Base):
     __tablename__ = "otp_codes"
