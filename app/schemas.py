@@ -31,3 +31,7 @@ class SosTriggerRequest(BaseModel):
 
 class SosResolveRequest(BaseModel):
     status: str  # "resolved" | "false_alarm"
+
+
+class RegisterPushTokenRequest(BaseModel):
+    fcm_token: str
