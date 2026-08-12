@@ -25,12 +25,15 @@ def geocode_pincode(pincode: str, country: str = "India"):
             headers={"User-Agent": "IMA-Maharashtra-App/1.0 (contact@example.org)"},
             timeout=8,
         )
+        print(f"[geocode_pincode] pincode={pincode} status={response.status_code} body={response.text[:200]}")
         response.raise_for_status()
         results = response.json()
         if not results:
+            print(f"[geocode_pincode] pincode={pincode} - no results returned")
             return None
         return float(results[0]["lat"]), float(results[0]["lon"])
-    except Exception:
+    except Exception as exc:
+        print(f"[geocode_pincode] FAILED for pincode={pincode}: {exc}")
         return None
 
 
@@ -48,10 +51,13 @@ def geocode_city_state(city: str, state: str, country: str = "India"):
             headers={"User-Agent": "IMA-Maharashtra-App/1.0 (contact@example.org)"},
             timeout=8,
         )
+        print(f"[geocode_city_state] query={query} status={response.status_code} body={response.text[:200]}")
         response.raise_for_status()
         results = response.json()
         if not results:
+            print(f"[geocode_city_state] query={query} - no results returned")
             return None
         return float(results[0]["lat"]), float(results[0]["lon"])
-    except Exception:
+    except Exception as exc:
+        print(f"[geocode_city_state] FAILED for query={query}: {exc}")
         return None
