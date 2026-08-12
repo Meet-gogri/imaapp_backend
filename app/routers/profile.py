@@ -5,7 +5,7 @@ from ..database import get_db
 from ..models import DoctorModel
 from ..schemas import DoctorProfileUpdate
 from ..deps import get_current_doctor
-from ..utils.geo import geocode_pincode, geocode_city_state
+from ..utils.geo import geocode_pincode, geocode_city_state, geocode_from_city_lookup
 
 router = APIRouter(prefix="/api/doctors", tags=["profile"])
 
@@ -63,12 +63,14 @@ def update_my_profile(
         current.photo_base64 = profile.photo_base64
 
     # Resolve pincode -> coordinates once here, cached for every future SOS
-    # radius search. If it fails (bad pincode, geocoder briefly down), the
-    # profile still saves - it just won't be reachable by SOS yet.
-    coords = geocode_pincode(profile.pincode)
+    # radius search. Built-in Maharashtra city lookup first - it's the
+    # reliable path since it needs no network call at all. Nominatim is kept
+    # as a secondary best-effort attempt only, since Render's IP range is
+    # currently blocked by their free service (see app/utils/geo.py notes).
+    coords = geocode_from_city_lookup(profile.city, profile.state)
     if not coords:
-        # Indian pincode coverage in the free geocoder is patchy - city/state
-        # place-name lookups are much more reliable, so fall back to that.
+        coords = geocode_pincode(profile.pincode)
+    if not coords:
         coords = geocode_city_state(profile.city, profile.state)
     if coords:
         current.latitude, current.longitude = coords
