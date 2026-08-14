@@ -97,6 +97,7 @@ def list_registered_doctors(
                 "pincode": d.pincode,
                 "city": d.city,
                 "state": d.state,
+                "photo_base64": d.photo_base64,
             }
             for d in doctors
         ]
