@@ -1,56 +1,20 @@
-import os
-import firebase_admin
-from firebase_admin import credentials, messaging
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-_firebase_app = None
+from ..database import get_db
+from ..models import DoctorModel
+from ..schemas import RegisterPushTokenRequest
+from ..deps import get_current_doctor
 
-
-def _get_firebase_app():
-    """Lazily initializes the Firebase Admin SDK using a credentials file
-    path from FIREBASE_CREDENTIALS_PATH. On Render, this points at a Secret
-    File (e.g. /etc/secrets/firebase-service-account.json) - the actual key
-    contents are never committed to GitHub or hardcoded here."""
-    global _firebase_app
-    if _firebase_app is not None:
-        return _firebase_app
-
-    cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
-    if not cred_path or not os.path.exists(cred_path):
-        print(f"[push] FIREBASE_CREDENTIALS_PATH not set or file missing ({cred_path}) - push notifications disabled")
-        return None
-
-    try:
-        cred = credentials.Certificate(cred_path)
-        _firebase_app = firebase_admin.initialize_app(cred)
-        print("[push] Firebase Admin initialized")
-        return _firebase_app
-    except Exception as exc:
-        print(f"[push] Failed to initialize Firebase Admin: {exc}")
-        return None
+router = APIRouter(prefix="/api/v1/push", tags=["push"])
 
 
-def send_push_notification(token: str, title: str, body: str, data: dict | None = None):
-    """Sends a real push notification to one device token. Safe to call even
-    if Firebase isn't configured yet - just logs and does nothing."""
-    app = _get_firebase_app()
-    if app is None or not token:
-        return False
-
-    try:
-        message = messaging.Message(
-            token=token,
-            notification=messaging.Notification(title=title, body=body),
-            data={k: str(v) for k, v in (data or {}).items()},
-            android=messaging.AndroidConfig(
-                priority="high",
-                notification=messaging.AndroidNotification(
-                    channel_id="sos_alerts",
-                    sound="siren",  # matches android/app/src/main/res/raw/siren.mp3, no extension
-                ),
-            ),
-        )
-        messaging.send(message, app=app)
-        return True
-    except Exception as exc:
-        print(f"[push] Failed to send to token={token[:12]}...: {exc}")
-        return False
+@router.post("/register-token")
+def register_token(
+    payload: RegisterPushTokenRequest,
+    db: Session = Depends(get_db),
+    current: DoctorModel = Depends(get_current_doctor),
+):
+    current.fcm_token = payload.fcm_token
+    db.commit()
+    return {"status": "success"}
